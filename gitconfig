@@ -52,6 +52,7 @@
     publish = !legit publish \"$@\"
     graft = !legit graft \"$@\"
     list-submodules = config --file .gitmodules --get-regexp path
+	ctags = !.git/hooks/ctags
 
 [apply]
     whitespace = strip
@@ -78,6 +79,13 @@
 	required = true
 	clean = git-lfs clean %f
 	smudge = git-lfs smudge %f
+<<<<<<< HEAD
 [user]
 	name = Craig J Smith
 	email = nctiggy@gmail.com
+=======
+[init]
+	templatedir = ~/.git-template
+[user]
+	useConfigOnly = true
+>>>>>>> 4b5b2579deca4832072583b71354a012f2eb5ff8

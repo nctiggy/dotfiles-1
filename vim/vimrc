@@ -8,6 +8,10 @@ set nowrap
 colorscheme hybrid
 let &winheight = &lines * 10 / 10
 
+" Look for tags file in current file dir upwards. Failing that, it will
+" look for the file in .git/tags
+set tags=./tags;,.git/tags
+
 " Don't go back to beginning of file when scanning/search
 set nowrapscan
 
@@ -17,7 +21,7 @@ nmap <leader>sw :set wrap!<CR>
 inoremap <C-y> <esc>gUiw`]a
 
 " Press '' quickly in insert mode instead of Esc
-imap '' <Esc>
+imap ;; <Esc>
 
 " Treat all numerals as decimal even if zero padded
 set nrformats=
@@ -168,6 +172,51 @@ nnoremap K yiw:Ag<SPACE><C-R>0<CR>
 nmap <leader>tb :TagbarToggle<CR>
 let g:tagbar_autofocus = 1
 let g:tagbar_autoclose = 1
+let g:tagbar_compact = 1
+
+let g:tagbar_type_ansible = {
+    \ 'ctagstype' : 'ansible',
+    \ 'kinds' : [
+    \ 't:tasks',
+    \ 'h:hosts'
+    \ ],
+    \ 'sort' : 0
+    \ }
+
+let g:tagbar_type_terraform = {
+    \ 'ctagstype' : 'terraform',
+    \ 'kinds' : [
+    \ 'r:resources',
+    \ 'm:modules',
+    \ 'o:outputs',
+    \ 'v:variables',
+    \ 'f:tfvars'
+    \ ],
+    \ 'sort' : 0
+    \ }
+
+let g:tagbar_type_make = {
+    \ 'kinds':[
+    \ 'm:macros',
+    \ 't:targets'
+    \ ]
+    \}
+
+let g:tagbar_type_sh = {
+    \ 'kinds':[
+    \ 'f:functions',
+    \ 'c:constants'
+    \ ]
+    \}
+
+let g:tagbar_type_markdown = {
+    \ 'ctagstype' : 'markdown',
+    \ 'kinds' : [
+    \ 'h:Heading_L1',
+    \ 'i:Heading_L2',
+    \ 'k:Heading_L3'
+    \ ]
+    \ }
 
 " Setup test.vim
 nmap <silent> <leader>s :TestNearest<CR>
@@ -250,6 +299,108 @@ inoremap <expr> <CR> pumvisible() ? "\<C-R>=ExpandSnippetOrCarriageReturn()\<CR>
 
 au BufRead,BufNewFile *.yaml.tpl set ft=yaml
 au BufRead,BufNewFile gitconfig set ft=gitconfig
+
+" Always expand the Quickfix window to 10 when in focus.
+" Copied from:
+" http://vim.wikia.com/wiki/Always_keep_quickfix_window_at_specified_height
+"
+" Maximize the window after entering it, be sure to keep the quickfix window
+" at the specified height.
+au WinEnter * call MaximizeAndResizeQuickfix(10)
+
+" Maximize current window and set the quickfix window to the specified height.
+function MaximizeAndResizeQuickfix(quickfixHeight)
+  " Redraw after executing the function.
+  set lazyredraw
+  " Ignore WinEnter events for now.
+  set ei=WinEnter
+  " Maximize current window.
+  wincmd _
+  " If the current window is the quickfix window
+  if (getbufvar(winbufnr(winnr()), "&buftype") == "quickfix")
+    " Maximize previous window, and resize the quickfix window to the
+    " specified height.
+    wincmd p
+    resize
+    wincmd p
+    exe "resize " . a:quickfixHeight
+  else
+    " Current window isn't the quickfix window, loop over all windows to
+    " find it (if it exists...)
+    let i = 1
+    let currBufNr = winbufnr(i)
+    while (currBufNr != -1)
+      " If the buffer in window i is the quickfix buffer.
+      if (getbufvar(currBufNr, "&buftype") == "quickfix")
+        " Go to the quickfix window, set height to quickfixHeight, and jump to the previous
+        " window.
+        exe i . "wincmd w"
+        exe "resize " . a:quickfixHeight
+        wincmd p
+        break
+      endif
+      let i = i + 1
+      let currBufNr = winbufnr(i)
+    endwhile
+  endif
+  set ei-=WinEnter
+  set nolazyredraw
+endfunction
+
+" Remap ,m to make and open error window if there are any errors. If there
+" weren't any errors, the current window is maximized.
+map <silent> ,m :mak<CR><CR>:cw<CR>:call MaximizeIfNotQuickfix()<CR>
+
+" Maximizes the current window if it is not the quickfix window.
+function MaximizeIfNotQuickfix()
+  if (getbufvar(winbufnr(winnr()), "&buftype") != "quickfix")
+    wincmd _
+  endif
+endfunction
+
+" Code from:
+" http://stackoverflow.com/questions/5585129/pasting-code-into-terminal-window-into-vim-on-mac-os-x
+" then https://coderwall.com/p/if9mda
+" and then https://github.com/aaronjensen/vimfiles/blob/59a7019b1f2d08c70c28a41ef4e2612470ea0549/plugin/terminaltweaks.vim
+" to fix the escape time problem with insert mode.
+"
+" Docs on bracketed paste mode:
+" http://www.xfree86.org/current/ctlseqs.html
+" Docs on mapping fast escape codes in vim
+" http://vim.wikia.com/wiki/Mapping_fast_keycodes_in_terminal_Vim
+
+if !exists("g:bracketed_paste_tmux_wrap")
+  let g:bracketed_paste_tmux_wrap = 1
+endif
+
+function! WrapForTmux(s)
+  if !g:bracketed_paste_tmux_wrap || !exists('$TMUX') || system('tmux -V')[5] >= '2'
+    return a:s
+  endif
+
+  let tmux_start = "\<Esc>Ptmux;"
+  let tmux_end = "\<Esc>\\"
+
+  return tmux_start . substitute(a:s, "\<Esc>", "\<Esc>\<Esc>", 'g') . tmux_end
+endfunction
+
+let &t_ti .= WrapForTmux("\<Esc>[?2004h")
+let &t_te .= WrapForTmux("\<Esc>[?2004l")
+
+function! XTermPasteBegin(ret)
+  set pastetoggle=<f29>
+  set paste
+  return a:ret
+endfunction
+
+execute "set <f28>=\<Esc>[200~"
+execute "set <f29>=\<Esc>[201~"
+map <expr> <f28> XTermPasteBegin("i")
+imap <expr> <f28> XTermPasteBegin("")
+vmap <expr> <f28> XTermPasteBegin("c")
+cmap <f28> <nop>
+cmap <f29> <nop>
+
 
 " ALWAYS DO THIS LAST
 if filereadable(glob("~/.vimrc.local"))
